@@ -1,0 +1,46 @@
+name: step-ca
+services:
+  tailscale:
+    image: tailscale/tailscale:latest
+    environment:
+      TS_HOSTNAME: step-ca
+      TS_USERSPACE: false
+      TS_STATE_DIR: /var/lib/tailscale
+      TS_ACCEPT_DNS: true
+      TS_AUTHKEY: file:/run/secrets/ts_authkey
+    volumes:
+      - tailscale-state:/var/lib/tailscale
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    cap_add:
+      - NET_ADMIN
+    secrets:
+      - ts_authkey
+    healthcheck:
+      test: [ "CMD-SHELL", "tailscale status" ]
+      interval: 10s
+      timeout: 5s
+      retries: 60
+    restart: unless-stopped
+  step-ca:
+    image: smallstep/step-ca:latest
+    depends_on:
+      tailscale:
+        condition: service_healthy
+    network_mode: service:tailscale
+    environment:
+      DOCKER_STEPCA_INIT_NAME: step-ca
+      DOCKER_STEPCA_INIT_DNS_NAMES: step-ca.ipn.rahulsalvi.com
+      DOCKER_STEPCA_INIT_REMOTE_MANAGEMENT: true
+    volumes:
+      - step-data:/home/step
+    restart: unless-stopped
+secrets:
+  ts_authkey:
+    file: ./ts_authkey.txt
+volumes:
+  tailscale-state:
+  step-data:
+networks:
+  default:
+    enable_ipv6: true
